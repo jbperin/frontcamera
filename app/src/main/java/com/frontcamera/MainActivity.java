@@ -13,6 +13,7 @@ import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Environment;
 import android.provider.MediaStore;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -21,9 +22,12 @@ import android.view.View;
 import android.view.WindowManager;
 import android.widget.ShareActionProvider;
 import android.widget.Toast;
+import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 
 public class MainActivity extends Activity implements TextureView.SurfaceTextureListener, View.OnClickListener, Camera.PictureCallback, SensorEventListener {
     private Camera camera;
@@ -151,16 +155,18 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
         }
         matrix.preScale(1.0f, -1.0f);
         Bitmap rotatedBitmap = Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), matrix, true);
-
-        Uri uriTarget = getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, new ContentValues());
+        String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
+        String cameraDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM).toString() + File.separator + "Camera";
+        String imagePath = cameraDir + File.separator + "IMG_" + timeStamp + ".jpg";
+        Uri contentUri = getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, getImageContent(new File(imagePath), bytes.length));
         OutputStream imageFileOS;
         try {
-            imageFileOS = getContentResolver().openOutputStream(uriTarget);
+            imageFileOS = getContentResolver().openOutputStream(contentUri);
             rotatedBitmap.compress(Bitmap.CompressFormat.JPEG, 90, imageFileOS);
             imageFileOS.flush();
             imageFileOS.close();
             Toast.makeText(this, "Image saved", Toast.LENGTH_SHORT).show();
-            String imagefileUri = uriTarget.toString();
+            String imagefileUri = contentUri.toString();
             shareActionProvider.setShareIntent(createSharingIntent(imagefileUri));
         } catch (FileNotFoundException e) {
             e.printStackTrace();
@@ -168,6 +174,19 @@ public class MainActivity extends Activity implements TextureView.SurfaceTexture
             e.printStackTrace();
         }
         frozen = true;
+    }
+
+    public ContentValues getImageContent(File parent, int length) {
+        ContentValues image = new ContentValues();
+        image.put(MediaStore.Images.ImageColumns.DATE_ADDED, System.currentTimeMillis());
+        image.put(MediaStore.Images.ImageColumns.DATE_MODIFIED, System.currentTimeMillis());
+        image.put(MediaStore.Images.ImageColumns.DATE_TAKEN, System.currentTimeMillis());
+        image.put(MediaStore.Images.ImageColumns.MIME_TYPE, "image/jpeg");
+        image.put(MediaStore.Images.ImageColumns.BUCKET_ID, parent.toString().toLowerCase().hashCode());
+        image.put(MediaStore.Images.ImageColumns.BUCKET_DISPLAY_NAME, parent.getName().toLowerCase());
+        image.put(MediaStore.Images.ImageColumns.SIZE, length);
+        image.put(MediaStore.Images.ImageColumns.DATA, parent.getPath());
+        return image;
     }
 
     @Override
